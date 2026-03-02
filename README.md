@@ -84,7 +84,7 @@ pip install -e ".[train]"
 ```bash
 # Clone this repository (in a separate directory)
 cd /path/to/your/projects
-git clone https://github.com/yourusername/sam3-maple.git
+git clone https://github.com/LIAOLTX/SAM3_MaPLe.git
 cd sam3-maple
 ```
 
@@ -296,7 +296,7 @@ If you use this code in your research, please cite:
 @misc{liao2026sam3maple,
   author = {Liao, Shu Hao},
   title = {SAM3-MaPLe: Multi-modal Prompt Learning for SAM3},
-  howpublished = {https://github.com/yourusername/sam3-maple},
+  howpublished = {https://github.com/LIAOLTX/SAM3_MaPLe.git},
   year = {2026}
 }
 
