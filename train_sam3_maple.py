@@ -1013,7 +1013,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/full_MaPLe_config.yaml",
+        default="configs/sam3_MaPLe_config.yaml",
         help="Path to YAML configuration file"
     )
     args = parser.parse_args()
