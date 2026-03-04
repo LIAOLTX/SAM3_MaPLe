@@ -6,6 +6,7 @@ This script loads the SAM3 model, applies PLe configuration,
 loads trained PLe weights, and runs inference on images.
 
 Usage:
+    # Single image:
     python3 inference_maple.py \
         --config configs/sam3_MaPLe_config.yaml \
         --weights outputs/sam3_maple/best_maple_weights.pt \
@@ -13,6 +14,15 @@ Usage:
         --prompt "An inconspicuous moth" \
         --threshold 0.5 \
         --output outputs/output.png
+
+    # Batch processing (directory):
+    python3 inference_maple.py \
+        --config configs/sam3_MaPLe_config.yaml \
+        --weights outputs/sam3_maple/best_maple_weights.pt \
+        --input_dir datasets/COD10K-example/valid/images \
+        --prompt "object" \
+        --threshold 0.5 \
+        --output outputs/
 """
 
 import os
@@ -328,8 +338,14 @@ def main():
     parser.add_argument(
         "--image",
         type=str,
-        required=True,
+        default=None,
         help="Path to input image"
+    )
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default=None,
+        help="Path to input directory containing images"
     )
     parser.add_argument(
         "--prompt",
@@ -370,26 +386,87 @@ def main():
         print(f"❌ Weights file not found: {args.weights}")
         print(f"   Available: best_maple_weights.pt or last_maple_weights.pt")
         return
-    if not os.path.exists(args.image):
+
+    # Check input - must specify either image or input_dir
+    if args.image is None and args.input_dir is None:
+        print("❌ Error: Please specify either --image or --input_dir")
+        return
+
+    if args.image is not None and args.input_dir is not None:
+        print("❌ Error: Please specify only one of --image or --input_dir, not both")
+        return
+
+    if args.input_dir is not None and not os.path.isdir(args.input_dir):
+        print(f"❌ Input directory not found: {args.input_dir}")
+        return
+
+    if args.image is not None and not os.path.exists(args.image):
         print(f"❌ Image file not found: {args.image}")
         return
 
     # Initialize inference
     inferencer = SAM3PLeInference(args.config, args.weights)
 
-    # Run prediction
-    predictions = inferencer.predict(args.image, args.prompt)
+    # Get list of image files
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
 
-    # Visualize results
-    inferencer.visualize_predictions(predictions, args.output, args.threshold, text_prompt=args.prompt)
+    def get_image_files(directory):
+        """Get all image files from a directory."""
+        image_files = []
+        for fname in os.listdir(directory):
+            ext = os.path.splitext(fname)[1].lower()
+            if ext in image_extensions:
+                image_files.append(os.path.join(directory, fname))
+        return sorted(image_files)
 
-    # Print summary
-    print("\n📊 Prediction Summary:")
-    if args.prompt:
-        print(f"  Text prompt: '{args.prompt}'")
-    print(f"  Detected objects: {(predictions['scores'].max(axis=1) > args.threshold).sum()}")
-    print(f"  Max confidence: {predictions['scores'].max():.3f}")
-    print(f"  Output saved to: {args.output}")
+    # Process single image or directory
+    if args.input_dir is not None:
+        # Process directory
+        image_files = get_image_files(args.input_dir)
+        if not image_files:
+            print(f"❌ No image files found in {args.input_dir}")
+            return
+
+        print(f"\n📁 Processing {len(image_files)} images from {args.input_dir}")
+
+        # Create output directory if needed
+        output_dir = args.output if os.path.isdir(args.output) else os.path.dirname(args.output) or "outputs"
+        os.makedirs(output_dir, exist_ok=True)
+
+        success_count = 0
+        for idx, img_path in enumerate(image_files):
+            img_name = os.path.splitext(os.path.basename(img_path))[0]
+            output_path = os.path.join(output_dir, f"{img_name}_output.png")
+
+            print(f"\n[{idx+1}/{len(image_files)}] Processing: {os.path.basename(img_path)}")
+
+            try:
+                predictions = inferencer.predict(img_path, args.prompt)
+                inferencer.visualize_predictions(predictions, output_path, args.threshold, text_prompt=args.prompt)
+
+                num_objs = (predictions['scores'].max(axis=1) > args.threshold).sum()
+                max_conf = predictions['scores'].max()
+                print(f"   -> Detected: {num_objs} objects, Max conf: {max_conf:.3f}")
+                success_count += 1
+            except Exception as e:
+                print(f"   -> Error: {e}")
+
+        print(f"\n✅ Completed: {success_count}/{len(image_files)} images processed successfully")
+        print(f"📁 Output saved to: {output_dir}")
+    else:
+        # Process single image
+        predictions = inferencer.predict(args.image, args.prompt)
+
+        # Visualize results
+        inferencer.visualize_predictions(predictions, args.output, args.threshold, text_prompt=args.prompt)
+
+        # Print summary
+        print("\n📊 Prediction Summary:")
+        if args.prompt:
+            print(f"  Text prompt: '{args.prompt}'")
+        print(f"  Detected objects: {(predictions['scores'].max(axis=1) > args.threshold).sum()}")
+        print(f"  Max confidence: {predictions['scores'].max():.3f}")
+        print(f"  Output saved to: {args.output}")
 
 
 if __name__ == "__main__":
